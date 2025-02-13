@@ -1,4 +1,1 @@
-soundcard
-soundfile
-pulsectl
-sounddevice
+-r frontend/requirements.txt

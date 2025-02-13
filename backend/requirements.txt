@@ -1,0 +1,18 @@
+# FastAPI Backend
+fastapi
+uvicorn
+pydantic
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+python-dotenv
+
+# Testing
+pytest
+pytest-asyncio
+httpx
+
+# Development Tools
+black
+flake8
+isort
