@@ -1,0 +1,4 @@
+soundcard
+soundfile
+pulsectl
+sounddevice
