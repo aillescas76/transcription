@@ -3,3 +3,5 @@ sounddevice>=0.4.0
 numpy>=1.19.0
 openai-whisper
 openai
+groq
+python-dotenv>=0.21.0

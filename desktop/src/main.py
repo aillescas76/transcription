@@ -1,6 +1,9 @@
 import sys
+from dotenv import load_dotenv
 from PyQt6.QtWidgets import QApplication
 from desktop.src.views.main_window import MainWindow
+
+load_dotenv()  # Load environment variables from .env before anything else
 
 def main():
     app = QApplication(sys.argv)
