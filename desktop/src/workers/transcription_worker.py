@@ -122,6 +122,7 @@ def clean_text_with_gemini(transcription_text):
     context = (
         "* Clean up the following text from an audio transcription.\n"
         "* Make the text coherent and try to identify participants in the conversation (participant_A, participant_B...).\n"
+        "* Translate all to Spanish.\n"
         "* This is the transciption text: \n"
         "'''\n"
         f"{transcription_text}\n"
