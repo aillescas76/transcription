@@ -59,7 +59,7 @@ def transcribe_single_file(processed_file_path, client, base_prompt):
     return response.text
 
 
-def transcribe_chunks(processed_file_path, client, base_prompt, context_prefix, chunk_files_list):
+def transcribe_chunks(processed_file_path, client, base_prompt, context_prefix, chunk_files_list, progress_callback=None):
     """
     Split the processed audio into time-based chunks (using pydub slicing),
     transcribe each with context from the previous, and return the full transcription.
@@ -68,16 +68,20 @@ def transcribe_chunks(processed_file_path, client, base_prompt, context_prefix, 
     # Load the audio ensuring proper WAV structure.
     audio_segment = AudioSegment.from_wav(processed_file_path)
     # Determine approximate chunk duration in ms.
-    bytes_per_second = audio_segment.frame_rate * audio_segment.channels * audio_segment.sample_width
+    import math
     CHUNK_SIZE = 20 * 1024 * 1024  # 20MB
+    bytes_per_second = audio_segment.frame_rate * audio_segment.channels * audio_segment.sample_width
     chunk_duration_ms = int((CHUNK_SIZE / bytes_per_second) * 1000)
+    total_chunks = math.ceil(len(audio_segment) / chunk_duration_ms)
     logging.info(f"Calculated chunk duration: {chunk_duration_ms} ms (bytes per second: {bytes_per_second}).")
 
     base_dir = os.getcwd()
     prev_context = ""
     responses = []
 
-    for start_ms in range(0, len(audio_segment), chunk_duration_ms):
+    for i, start_ms in enumerate(range(0, len(audio_segment), chunk_duration_ms)):
+        if progress_callback:
+            progress_callback(f"Processing chunk {i+1} of {total_chunks}...")
         chunk = audio_segment[start_ms: start_ms + chunk_duration_ms]
         chunk_filename = os.path.splitext(os.path.basename(processed_file_path))[0] + f"_chunk{start_ms}.wav"
         chunk_filepath = os.path.join(base_dir, chunk_filename)
@@ -86,11 +90,11 @@ def transcribe_chunks(processed_file_path, client, base_prompt, context_prefix, 
         logging.info(f"Exported chunk starting at {start_ms} ms to file {chunk_filepath} with duration {len(chunk)} ms.")
         chunk_files_list.append(chunk_filepath)
 
-        # Build prompt ensuring the total remains below 800 characters.
+        # Build prompt ensuring the total remains below the API limit of 896 characters.
         if prev_context:
-            available_chars = 800 - len(base_prompt) - len(context_prefix) - 1  # leaving space for newline
-            truncated_context = prev_context[:available_chars]
-            prompt_text = f"{base_prompt}{context_prefix}{truncated_context}\n"
+            max_prompt_length = 224 - 1 - len(context_prefix)  # API maximum allowed characters
+            truncated_context = prev_context[:max_prompt_length]
+            prompt_text = f"{context_prefix}\n{truncated_context}\n"
         else:
             prompt_text = base_prompt
 
@@ -122,7 +126,6 @@ def clean_text_with_gemini(transcription_text):
     context = (
         "* Clean up the following text from an audio transcription.\n"
         "* Make the text coherent and try to identify participants in the conversation (participant_A, participant_B...).\n"
-        "* Translate all to Spanish.\n"
         "* This is the transciption text: \n"
         "'''\n"
         f"{transcription_text}\n"
@@ -138,6 +141,7 @@ def clean_text_with_gemini(transcription_text):
 
 class TranscriptionWorker(QThread):
     transcription_ready = pyqtSignal(str)
+    progress_update = pyqtSignal(str)
 
     def __init__(self, file_path, parent=None):
         super().__init__(parent)
@@ -145,9 +149,11 @@ class TranscriptionWorker(QThread):
 
     def run(self):
         try:
+            self.progress_update.emit("Starting transcription process...")
             try:
                 processed_file_path = preprocess_audio(self.file_path)
                 chunk_files = []
+                self.progress_update.emit("Audio preprocessing completed.")
             except Exception as e:
                 logging.error(f"Error during preprocessing: {e}")
                 self.transcription_ready.emit(f"Error during preprocessing: {str(e)}")
@@ -173,11 +179,16 @@ class TranscriptionWorker(QThread):
             )
 
             if file_size > MAX_SIZE:
-                final_transcription = transcribe_chunks(processed_file_path, client, base_prompt, context_prefix, chunk_files)
+                final_transcription = transcribe_chunks(
+                    processed_file_path, client, base_prompt, context_prefix, chunk_files,
+                    progress_callback=lambda msg: self.progress_update.emit(msg)
+                )
             else:
+                self.progress_update.emit("Processing full file transcription...")
                 final_transcription = transcribe_single_file(processed_file_path, client, base_prompt)
 
             # Clean up the transcribed text using Gemini
+            self.progress_update.emit("Cleaning transcription using Gemini API...")
             try:
                 final_transcription = clean_text_with_gemini(final_transcription)
             except Exception as e:
