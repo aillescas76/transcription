@@ -1,0 +1,27 @@
+QDialog {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #121212, stop:1 #1e1e1e);
+    border-radius: 8px;
+}
+QPushButton {
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    background-color: #BB86FC;
+    color: #000000;
+    font: bold 14px "Segoe UI";
+}
+QPushButton:hover {
+    background-color: #9a68d8;
+}
+QComboBox {
+    font: 13px "Segoe UI";
+    border: 1px solid #444444;
+    border-radius: 4px;
+    padding: 6px;
+    background-color: #2a2a2a;
+    color: #ffffff;
+}
+QLabel {
+    font: 13px "Segoe UI";
+    color: #ffffff;
+}

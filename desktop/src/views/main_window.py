@@ -1,18 +1,25 @@
 import os
 from desktop.src.workers.transcription_worker import TranscriptionWorker
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSettings, pyqtSignal
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QTextEdit, QPushButton, QFileDialog,
-    QProgressDialog
+    QProgressDialog, QApplication
 )
+from PyQt6.QtGui import QIcon, QPalette, QColor
 
 
 class MainWindow(QMainWindow):
+    theme_changed = pyqtSignal(bool)
     def __init__(self, parent=None):
         super().__init__(parent)
+        icon_path = os.path.join(os.path.dirname(__file__), "..", "..", "icons", "app_icon.svg")
+        self.setWindowIcon(QIcon(icon_path))
         self.setWindowTitle("Desktop Audio App")
         self.resize(1024, 768)
+
+        self.settings = QSettings("YourOrganization", "YourAppName")
+        self.dark_mode = self.settings.value("dark_mode", False, type=bool)
 
         # Create central widget and main layout
         central_widget = QWidget()
@@ -21,11 +28,11 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(10)
 
         # Add top bar for the theme toggle button
-        self.dark_mode = False  # initial mode is light
         top_bar_layout = QHBoxLayout()
         top_bar_layout.addStretch()  # push items to the right
-        self.theme_button = QPushButton("Dark Mode")
+        self.theme_button = QPushButton()
         self.theme_button.clicked.connect(self.toggle_theme)
+        self.apply_theme()
         top_bar_layout.addWidget(self.theme_button)
         # Insert the top bar layout at the top of the main layout
         main_layout.insertLayout(0, top_bar_layout)
@@ -54,9 +61,13 @@ class MainWindow(QMainWindow):
         # -- Record and Transcribe Buttons --
         button_layout = QHBoxLayout()
         self.record_button = QPushButton("Record")
+        self.record_button.setIcon(QIcon("desktop/icons/mic_24dp.svg"))
         self.record_button.clicked.connect(self.open_record_dialog)
+
         self.transcribe_button = QPushButton("Transcribe")
+        self.transcribe_button.setIcon(QIcon("desktop/icons/description_24dp.svg"))
         self.transcribe_button.clicked.connect(self.open_file_selector)
+
         button_layout.addWidget(self.record_button)
         button_layout.addWidget(self.transcribe_button)
         button_layout.addStretch()  # Adjust placement as needed
@@ -66,9 +77,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
 
     def open_record_dialog(self):
-        # TODO: instantiate and show the floating Record Dialog with mic/sound selectors.
-        # For now, simply print to console to confirm the button action.
-        print("Record dialog should open now.")
+        from desktop.src.views.record_dialog import RecordDialog
+        dialog = RecordDialog(self)
+        dialog.exec()
 
     def update_transcription(self, text):
         self.raw_text_edit.setPlainText(text)
@@ -95,32 +106,55 @@ class MainWindow(QMainWindow):
             self.worker.start()
             
     def toggle_theme(self):
-        from PyQt6.QtWidgets import QApplication
-        if self.dark_mode:
-            # Switch to light theme with explicit text colors for visibility
-            style = """
-                QMainWindow { background-color: #f0f0f0; color: #000000; }
-                QProgressDialog { background-color: #ffffff; border: 1px solid #cccccc; color: #000000; }
-                QPushButton { background-color: #1976d2; color: #ffffff; border-radius: 5px; padding: 8px 16px; }
-                QPushButton:hover { background-color: #1565c0; }
-                QLabel { font-family: "Segoe UI", sans-serif; font-size: 14px; color: #000000; }
-                QTextEdit { background-color: #ffffff; border: 1px solid #cccccc; font-family: "Segoe UI", sans-serif; font-size: 12px; color: #000000; }
-            """
-            self.theme_button.setText("Dark Mode")
-            self.dark_mode = False
-        else:
-            # Switch to dark theme with improved contrast and visible text
-            style = """
-                QMainWindow { background-color: #2b2b2b; color: #e0e0e0; }
-                QProgressDialog { background-color: #333333; border: 1px solid #555555; color: #e0e0e0; }
-                QPushButton { background-color: #546e7a; color: #e0e0e0; border-radius: 5px; padding: 8px 16px; }
-                QPushButton:hover { background-color: #455a64; }
-                QLabel { font-family: "Segoe UI", sans-serif; font-size: 14px; color: #e0e0e0; }
-                QTextEdit { background-color: #424242; border: 1px solid #555555; font-family: "Segoe UI", sans-serif; font-size: 12px; color: #e0e0e0; }
-            """
-            self.theme_button.setText("Light Mode")
-            self.dark_mode = True
+        self.dark_mode = not self.dark_mode
+        self.settings.setValue("dark_mode", self.dark_mode)
+        self.apply_theme()
+        self.theme_changed.emit(self.dark_mode)
 
-        # Apply the new style globally
-        QApplication.instance().setStyleSheet(style)
+    def apply_theme(self):
+        palette = QPalette()
+        if self.dark_mode:
+            # Revert to the previous dark mode colors:
+            palette.setColor(QPalette.ColorRole.Window, QColor("#1F1C2C"))
+            palette.setColor(QPalette.ColorRole.WindowText, QColor("#e0e0e0"))
+            palette.setColor(QPalette.ColorRole.Base, QColor("#424242"))
+            palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#1F1C2C"))
+            palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#1F1C2C"))
+            palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#e0e0e0"))
+            palette.setColor(QPalette.ColorRole.Text, QColor("#e0e0e0"))
+            palette.setColor(QPalette.ColorRole.Button, QColor("#5B86E5"))
+            palette.setColor(QPalette.ColorRole.ButtonText, QColor("#FFFFFF"))
+            palette.setColor(QPalette.ColorRole.Link, QColor("#5B86E5"))
+            light_icon = os.path.join(os.path.dirname(__file__), "..", "..", "icons", "light_mode_24dp.svg")
+            self.theme_button.setIcon(QIcon(light_icon))
+        else:
+            palette.setColor(QPalette.ColorRole.Window, QColor("#f0f0f0"))
+            palette.setColor(QPalette.ColorRole.WindowText, QColor("#000000"))
+            palette.setColor(QPalette.ColorRole.Base, QColor("#ffffff"))
+            palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#f0f0f0"))
+            palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#ffffff"))
+            palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#000000"))
+            palette.setColor(QPalette.ColorRole.Text, QColor("#000000"))
+            palette.setColor(QPalette.ColorRole.Button, QColor("#1976d2"))
+            palette.setColor(QPalette.ColorRole.ButtonText, QColor("#ffffff"))
+            palette.setColor(QPalette.ColorRole.Link, QColor("#1976d2"))
+            dark_icon = os.path.join(os.path.dirname(__file__), "..", "..", "icons", "dark_mode_24dp.svg")
+            self.theme_button.setIcon(QIcon(dark_icon))
+        
+        # Apply the palette to both the QApplication and the MainWindow hierarchy.
+        QApplication.instance().setPalette(palette)
+        self.setPalette(palette)
+        if self.centralWidget():
+            self.centralWidget().setPalette(palette)
+        
+        # --- Load external QSS for MainWindow ---
+        from os.path import join, dirname, abspath
+        base_path = join(dirname(abspath(__file__)), "..", "..", "styles")
+        qss_path = join(base_path, "mainwindow_dark.qss") if self.dark_mode else join(base_path, "mainwindow_light.qss")
+        try:
+            with open(qss_path, "r") as qss_file:
+                qss = qss_file.read()
+                self.setStyleSheet(qss)
+        except Exception as e:
+            print(f"Error loading QSS file {qss_path}: {e}")
 

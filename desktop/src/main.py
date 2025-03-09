@@ -1,6 +1,8 @@
 import sys
+import os
 from dotenv import load_dotenv
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtGui import QIcon
 from desktop.src.views.main_window import MainWindow
 
 load_dotenv()  # Load environment variables from .env before anything else
@@ -8,6 +10,9 @@ load_dotenv()  # Load environment variables from .env before anything else
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
+    # Build absolute path to the app icon
+    icon_path = os.path.join(os.path.dirname(__file__), "..", "icons", "app_icon.svg")
+    app.setWindowIcon(QIcon(icon_path))
     app.setStyleSheet("""
         QMainWindow { background-color: #f0f0f0; color: #000000; }
         QProgressDialog { background-color: #ffffff; border: 1px solid #cccccc; color: #000000; }
