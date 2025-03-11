@@ -146,6 +146,22 @@ class TranscriptionWorker(QThread):
     def __init__(self, file_path, parent=None):
         super().__init__(parent)
         self.file_path = file_path
+        try:
+            with open("technical_words.txt", "r", encoding="utf-8") as f:
+                self.tech_words = f.read().strip()
+        except Exception as e:
+            logging.error(f"Error reading technical words file: {e}")
+            self.tech_words = ""
+
+    def clean_up(self, chunk_files):
+        if 'chunk_files' in locals():
+            for chunk_file in chunk_files:
+                if os.path.exists(chunk_file):
+                    try:
+                        os.remove(chunk_file)
+                        logging.info(f"Removed chunk file: {chunk_file}")
+                    except Exception as rm_chunk_err:
+                        logging.error(f"Error removing chunk file {chunk_file}: {rm_chunk_err}")
 
     def run(self):
         try:
@@ -165,16 +181,9 @@ class TranscriptionWorker(QThread):
             file_size = os.path.getsize(processed_file_path)
             client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-            try:
-                with open("technical_words.txt", "r", encoding="utf-8") as f:
-                    tech_words = f.read().strip()
-            except Exception as e:
-                logging.error(f"Error reading technical words file: {e}")
-                tech_words = ""
-
             base_prompt = (
                 "Transcribe the audio ensuring the final transcription is in Spanish. "
-                f"Use the following technical vocabulary as context: {tech_words}. "
+                f"Use the following technical vocabulary as context: {self.tech_words}. "
                 "If something is not clear, return nothing. "
             )
 
@@ -197,14 +206,7 @@ class TranscriptionWorker(QThread):
             self.transcription_ready.emit(final_transcription)
 
             # Clean up any chunk files created in the base directory
-            if 'chunk_files' in locals():
-                for chunk_file in chunk_files:
-                    if os.path.exists(chunk_file):
-                        try:
-                            os.remove(chunk_file)
-                            logging.info(f"Removed chunk file: {chunk_file}")
-                        except Exception as rm_chunk_err:
-                            logging.error(f"Error removing chunk file {chunk_file}: {rm_chunk_err}")
+            self.clean_up(chunk_files)
 
         except Exception as e:
             logging.error(f"Error during transcription: {e}")
